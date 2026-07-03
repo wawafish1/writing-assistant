@@ -147,7 +147,12 @@ JIN10_MCP_TOKEN=金十 MCP Bearer Token
 DATABASE_PATH=SQLite 数据库路径
 ```
 
-如果使用官方 API，通常只需要填写各家的 `API_KEY` 和模型名；`OPENAI_BASE_URL` 可以留空，`XAI_BASE_URL` 与 `DEEPSEEK_BASE_URL` 使用示例中的官方地址即可。
+实际接入说明：
+
+- DeepSeek 当前按官方 API 配置，默认使用 `https://api.deepseek.com`。
+- OpenAI 和 xAI/Grok 可以使用官方 API，也可以按自己的服务条件改成兼容 OpenAI 格式的中转服务。
+- 如果使用官方 API，通常只需要填写各家的 `API_KEY` 和模型名；`OPENAI_BASE_URL` 可以留空，`XAI_BASE_URL` 使用示例中的官方地址即可。
+- 如果使用中转服务，请根据中转服务文档修改对应的 `BASE_URL`、`API_KEY` 和 `MODEL`，不要把真实 Key 提交到 GitHub。
 
 ## 数据和安全
 
