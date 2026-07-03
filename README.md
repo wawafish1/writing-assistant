@@ -56,8 +56,16 @@ Copy-Item .env.example .env
 
 ```text
 OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5
+
 XAI_API_KEY=
+XAI_BASE_URL=https://api.x.ai/v1
+XAI_MODEL=grok-4
+
 DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
+
 TAVILY_API_KEY=
 ALPHA_VANTAGE_API_KEY=
 FINNHUB_API_KEY=
@@ -117,15 +125,15 @@ http://127.0.0.1:8010/docs
 
 ```text
 OPENAI_API_KEY=GPT 接口 Key
-OPENAI_BASE_URL=可选，兼容 OpenAI 格式的代理地址
+OPENAI_BASE_URL=OpenAI 官方 API 地址；使用官方服务时可以留空
 OPENAI_MODEL=GPT 模型名
 
 XAI_API_KEY=Grok 接口 Key
-XAI_BASE_URL=可选，兼容 OpenAI 格式的代理地址
+XAI_BASE_URL=xAI 官方 API 地址，默认 https://api.x.ai/v1
 XAI_MODEL=Grok 模型名
 
 DEEPSEEK_API_KEY=DeepSeek 接口 Key
-DEEPSEEK_BASE_URL=可选，DeepSeek 或兼容服务地址
+DEEPSEEK_BASE_URL=DeepSeek 官方 API 地址，默认 https://api.deepseek.com
 DEEPSEEK_MODEL=DeepSeek 模型名
 
 TAVILY_API_KEY=Tavily 搜索 Key
@@ -138,6 +146,8 @@ JIN10_MCP_TOKEN=金十 MCP Bearer Token
 
 DATABASE_PATH=SQLite 数据库路径
 ```
+
+如果使用官方 API，通常只需要填写各家的 `API_KEY` 和模型名；`OPENAI_BASE_URL` 可以留空，`XAI_BASE_URL` 与 `DEEPSEEK_BASE_URL` 使用示例中的官方地址即可。
 
 ## 数据和安全
 
@@ -168,4 +178,3 @@ python -m app.cli generate yijiangren "主题：AI 算力周期发生了什么�
 ```
 
 现在主要推荐使用网页界面，命令行功能作为补充。
-
