@@ -124,17 +124,17 @@ http://127.0.0.1:8010/docs
 ## 环境变量说明
 
 ```text
-OPENAI_API_KEY=GPT 接口 Key
+OPENAI_API_KEY=OpenAI 官方 API Key
 OPENAI_BASE_URL=OpenAI 官方 API 地址；使用官方服务时可以留空
-OPENAI_MODEL=GPT 模型名
+OPENAI_MODEL=OpenAI 官方模型名，例如 gpt-5
 
-XAI_API_KEY=Grok 接口 Key
+XAI_API_KEY=xAI 官方 API Key
 XAI_BASE_URL=xAI 官方 API 地址，默认 https://api.x.ai/v1
-XAI_MODEL=Grok 模型名
+XAI_MODEL=xAI 官方模型名，例如 grok-4
 
-DEEPSEEK_API_KEY=DeepSeek 接口 Key
+DEEPSEEK_API_KEY=DeepSeek 官方 API Key
 DEEPSEEK_BASE_URL=DeepSeek 官方 API 地址，默认 https://api.deepseek.com
-DEEPSEEK_MODEL=DeepSeek 模型名
+DEEPSEEK_MODEL=DeepSeek 官方模型名，例如 deepseek-chat
 
 TAVILY_API_KEY=Tavily 搜索 Key
 ALPHA_VANTAGE_API_KEY=Alpha Vantage 行情 Key
