@@ -22,7 +22,6 @@ def load_dotenv(path: str | Path = ".env") -> None:
 
 @dataclass(frozen=True)
 class Settings:
-    x_bearer_token: str | None
     openai_api_key: str | None
     xai_api_key: str | None
     deepseek_api_key: str | None
@@ -39,13 +38,14 @@ class Settings:
     openai_base_url: str | None
     xai_base_url: str
     deepseek_base_url: str
+    hot_topic_provider: str
+    hot_topic_model: str
 
 
 def get_settings() -> Settings:
     load_dotenv()
     database_path = Path(os.getenv("DATABASE_PATH", "data/twitter_style.db"))
     return Settings(
-        x_bearer_token=os.getenv("X_BEARER_TOKEN"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         xai_api_key=os.getenv("XAI_API_KEY"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
@@ -62,4 +62,6 @@ def get_settings() -> Settings:
         deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-pro"),
         xai_base_url=os.getenv("XAI_BASE_URL", "https://api.x.ai/v1"),
         deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+        hot_topic_provider=os.getenv("HOT_TOPIC_PROVIDER", "deepseek").strip().lower(),
+        hot_topic_model=os.getenv("HOT_TOPIC_MODEL", "deepseek-chat").strip(),
     )

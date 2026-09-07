@@ -19,10 +19,9 @@
 
 ## MVP 模块
 
-- `app.x_api`: X API 用户解析和 posts 采集。
+- 样本通过逐篇录入或批量导入进入数据库。
 - `app.db`: SQLite 建表、保存和查询。
 - `app.style`: 风格画像生成和文章生成逻辑。
 - `app.llm`: OpenAI Responses API 封装。
 - `app.main`: FastAPI 接口。
 - `app.cli`: 本地命令行入口。
-

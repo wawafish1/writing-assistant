@@ -7,6 +7,10 @@ from typing import Any
 
 import requests
 
+from app.hot_topics import collect_crypto_quotes
+from app.wgd_insight import collect_tickers as collect_wgd_tickers
+from app.wgd_insight import normalize_digest_time, public_ticker_url
+
 
 class ResearchError(RuntimeError):
     pass
@@ -25,16 +29,24 @@ def collect_research(
     topic: str,
     keywords: list[str],
     symbols: list[str],
+    crypto_symbols: list[str] | None = None,
 ) -> dict[str, Any]:
     topic = topic.strip()
     clean_keywords = [item.strip() for item in keywords if item.strip()]
     clean_symbols = [item.strip().upper() for item in symbols if item.strip()]
+    clean_crypto_symbols = [
+        item.strip().upper() for item in (crypto_symbols or []) if item.strip()
+    ]
     query_terms = [topic, *clean_keywords]
 
     sources: dict[str, Any] = {}
     evidence: list[dict[str, Any]] = []
 
-    tavily = tavily_search(settings.tavily_api_key, " ".join(query_terms), max_results=6)
+    tavily, tavily_error = _try_source(
+        lambda: tavily_search(settings.tavily_api_key, " ".join(query_terms), max_results=6)
+    )
+    if tavily_error:
+        tavily = {"ok": False, "error": tavily_error, "results": []}
     sources["tavily"] = tavily
     for item in tavily.get("results", []):
         evidence.append(
@@ -48,8 +60,14 @@ def collect_research(
             }
         )
 
-    finnhub = collect_finnhub(settings.finnhub_api_key, clean_symbols)
-    sources["finnhub"] = finnhub
+    finnhub, finnhub_error = _try_source(
+        lambda: collect_finnhub(settings.finnhub_api_key, clean_symbols)
+    )
+    if finnhub_error:
+        sources["finnhub"] = {"ok": False, "error": finnhub_error}
+        finnhub = {}
+    else:
+        sources["finnhub"] = finnhub
     for symbol, payload in finnhub.items():
         quote = payload.get("quote") or {}
         if quote:
@@ -80,8 +98,14 @@ def collect_research(
                 }
             )
 
-    alpha = collect_alpha_vantage(settings.alpha_vantage_api_key, clean_symbols)
-    sources["alpha_vantage"] = alpha
+    alpha, alpha_error = _try_source(
+        lambda: collect_alpha_vantage(settings.alpha_vantage_api_key, clean_symbols)
+    )
+    if alpha_error:
+        sources["alpha_vantage"] = {"ok": False, "error": alpha_error}
+        alpha = {}
+    else:
+        sources["alpha_vantage"] = alpha
     for symbol, quote in alpha.items():
         if quote:
             evidence.append(
@@ -100,7 +124,67 @@ def collect_research(
                 }
             )
 
-    blockbeats = blockbeats_newsflash(settings.blockbeats_api_key, size=8)
+    wgd = collect_wgd_tickers(clean_symbols, timeout=12, max_items=8)
+    sources["wgd_insight"] = wgd
+    for item in wgd.get("items", []):
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        sentiment = item.get("sentiment_label") or item.get("sentiment_label_en") or "未标注"
+        headline = item.get("headline") or item.get("headline_en") or "暂无舆情标题"
+        evidence.append(
+            {
+                "source": "WGD Insight",
+                "type": "social_sentiment",
+                "title": f"{symbol} 公开舆情：{headline}",
+                "time": normalize_digest_time(item.get("digest_date")),
+                "url": public_ticker_url(symbol),
+                "summary": (
+                    f"{symbol} ({item.get('company_name') or '公司名未标注'}): "
+                    f"sentiment={sentiment}; score={item.get('sentiment_score')}; "
+                    f"post_count={item.get('post_count')}; "
+                    f"post_count_change_7d={item.get('post_count_change_7d')}%; "
+                    f"content_change_7d={item.get('content_change_7d')}%; "
+                    "该排名和统计仅代表 WGD Insight 平台公开舆情，不代表全网热度或投资建议。"
+                ),
+                "symbol": symbol,
+                "data": {
+                    "sentiment_score": item.get("sentiment_score"),
+                    "sentiment_label": sentiment,
+                    "post_count": item.get("post_count"),
+                    "post_count_change_7d": item.get("post_count_change_7d"),
+                    "content_change_7d": item.get("content_change_7d"),
+                    "tier_limited": item.get("tier_limited"),
+                },
+            }
+        )
+
+    crypto_quotes = collect_crypto_quotes(clean_crypto_symbols)
+    sources["okx_crypto"] = crypto_quotes
+    for quote in crypto_quotes.get("items", []):
+        symbol = quote.get("symbol") or "crypto"
+        evidence.append(
+            {
+                "source": "OKX",
+                "type": "crypto_quote",
+                "title": f"{symbol}/USDT 24小时行情",
+                "time": quote.get("timestamp"),
+                "url": None,
+                "summary": (
+                    f"{symbol}/USDT: price={quote.get('price')}, "
+                    f"change_24h={quote.get('change_24h')}%, "
+                    f"high_24h={quote.get('high_24h')}, low_24h={quote.get('low_24h')}, "
+                    f"volume_24h={quote.get('volume_24h')}"
+                ),
+                "data": quote,
+            }
+        )
+
+    blockbeats, blockbeats_error = _try_source(
+        lambda: blockbeats_newsflash(settings.blockbeats_api_key, size=8)
+    )
+    if blockbeats_error:
+        blockbeats = {"ok": False, "error": blockbeats_error, "items": []}
     sources["blockbeats"] = blockbeats
     for item in blockbeats.get("items", []):
         content = item.get("content") or item.get("title") or item.get("description")
@@ -119,6 +203,7 @@ def collect_research(
         "topic": topic,
         "keywords": clean_keywords,
         "symbols": clean_symbols,
+        "crypto_symbols": clean_crypto_symbols,
         "collected_at": datetime.now(UTC).isoformat(),
         "sources": sources,
         "evidence": [item for item in evidence if item.get("summary") or item.get("title")],
@@ -128,6 +213,10 @@ def collect_research(
 def tavily_search(api_key: str | None, query: str, max_results: int = 6) -> dict[str, Any]:
     if not api_key or not query.strip():
         return {"ok": False, "skipped": True, "results": []}
+    search_query = (
+        f"latest financial and technology news {datetime.now(UTC).date().isoformat()} "
+        f"{query.strip()}"
+    )
     response = requests.post(
         "https://api.tavily.com/search",
         headers={
@@ -135,10 +224,12 @@ def tavily_search(api_key: str | None, query: str, max_results: int = 6) -> dict
             "Content-Type": "application/json",
         },
         json={
-            "query": query,
+            "query": search_query,
             "max_results": max_results,
             "search_depth": "basic",
             "include_answer": False,
+            "topic": "news",
+            "days": 7,
         },
         timeout=30,
     )
@@ -276,6 +367,13 @@ def _json_or_error(response: requests.Response, label: str) -> Any:
         return response.json()
     except ValueError as exc:
         raise ResearchError(f"{label} did not return JSON: {response.text[:300]}") from exc
+
+
+def _try_source(callback: Any) -> tuple[Any, str | None]:
+    try:
+        return callback(), None
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {_compact(str(exc), 300)}"
 
 
 def _compact(text: str, limit: int) -> str:

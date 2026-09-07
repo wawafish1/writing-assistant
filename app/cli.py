@@ -7,18 +7,11 @@ from app.config import get_settings
 from app.db import Database
 from app.llm import LlmError
 from app.style import analyze_style_with_llm, build_heuristic_profile, generate_article_with_llm
-from app.x_api import XApiError, XClient
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="写作助手")
     subparsers = parser.add_subparsers(dest="command", required=True)
-
-    collect_parser = subparsers.add_parser("collect", help="Collect recent posts")
-    collect_parser.add_argument("username")
-    collect_parser.add_argument("--limit", type=int, default=500)
-    collect_parser.add_argument("--include-replies", action="store_true")
-    collect_parser.add_argument("--include-retweets", action="store_true")
 
     analyze_parser = subparsers.add_parser("analyze", help="Analyze writing style")
     analyze_parser.add_argument("username")
@@ -39,25 +32,10 @@ def main() -> int:
     database = Database(settings.database_path)
 
     try:
-        if args.command == "collect":
-            client = XClient(settings.x_bearer_token or "")
-            user = client.get_user(args.username)
-            posts = client.fetch_recent_posts(
-                user_id=user["id"],
-                limit=args.limit,
-                exclude_replies=not args.include_replies,
-                exclude_retweets=not args.include_retweets,
-            )
-            username = user["username"].lower()
-            database.upsert_author(username, user["id"], user.get("name"))
-            changed = database.upsert_posts(username, posts)
-            print(f"Fetched {len(posts)} posts for @{username}; rows changed: {changed}.")
-            return 0
-
         if args.command == "analyze":
             posts = database.get_posts(args.username, limit=args.sample_limit)
             if not posts:
-                print("No posts found. Run collect first.", file=sys.stderr)
+                print("No posts found. Import samples first.", file=sys.stderr)
                 return 1
             model = args.model or settings.openai_model
             if args.heuristic:
@@ -96,7 +74,7 @@ def main() -> int:
             print(f"Generation #{generation_id}\n")
             print(draft)
             return 0
-    except (XApiError, LlmError) as exc:
+    except LlmError as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

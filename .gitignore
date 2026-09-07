@@ -4,6 +4,8 @@ __pycache__/
 .env
 data/
 .pytest_cache/
+.playwright-cli/
+output/
 *.db
 *.sqlite
 *.sqlite3

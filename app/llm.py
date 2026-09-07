@@ -28,10 +28,21 @@ def parse_model_spec(model: str, provider: str | None = None) -> ModelSpec:
     return ModelSpec(provider="openai", model=model)
 
 
-def generate_text(model: str, input_text: str, provider: str | None = None) -> str:
+def generate_text(
+    model: str,
+    input_text: str,
+    provider: str | None = None,
+    timeout_seconds: float = 120,
+    max_retries: int = 0,
+) -> str:
     spec = parse_model_spec(model, provider)
     if spec.provider == "openai":
-        return _generate_openai(spec.model, input_text)
+        return _generate_openai(
+            spec.model,
+            input_text,
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
+        )
     if spec.provider == "xai":
         return _generate_openai_compatible(
             api_key_name="XAI_API_KEY",
@@ -39,6 +50,8 @@ def generate_text(model: str, input_text: str, provider: str | None = None) -> s
             model=spec.model,
             input_text=input_text,
             provider_label="xAI/Grok",
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
         )
     if spec.provider == "deepseek":
         return _generate_openai_compatible(
@@ -47,19 +60,38 @@ def generate_text(model: str, input_text: str, provider: str | None = None) -> s
             model=spec.model,
             input_text=input_text,
             provider_label="DeepSeek",
+            timeout_seconds=timeout_seconds,
+            max_retries=max_retries,
         )
     raise LlmError(f"不支持的模型供应商：{spec.provider}")
 
 
-def generate_json(model: str, input_text: str, provider: str | None = None) -> dict[str, Any]:
-    text = generate_text(model=model, input_text=input_text, provider=provider)
+def generate_json(
+    model: str,
+    input_text: str,
+    provider: str | None = None,
+    timeout_seconds: float = 120,
+    max_retries: int = 0,
+) -> dict[str, Any]:
+    text = generate_text(
+        model=model,
+        input_text=input_text,
+        provider=provider,
+        timeout_seconds=timeout_seconds,
+        max_retries=max_retries,
+    )
     try:
         return json.loads(_extract_json(text))
     except json.JSONDecodeError as exc:
         raise LlmError(f"模型没有返回合法 JSON，前 500 个字符是：{text[:500]}") from exc
 
 
-def _generate_openai(model: str, input_text: str) -> str:
+def _generate_openai(
+    model: str,
+    input_text: str,
+    timeout_seconds: float,
+    max_retries: int,
+) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise LlmError("缺少 OPENAI_API_KEY。请先在 .env 文件里填写你的 OpenAI API Key。")
@@ -69,19 +101,43 @@ def _generate_openai(model: str, input_text: str) -> str:
         raise LlmError("还没有安装 openai 依赖。请运行：pip install -r requirements.txt") from exc
 
     base_url = os.getenv("OPENAI_BASE_URL")
-    client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-    if base_url:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": input_text}],
-            temperature=0.2,
+    client = (
+        OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout_seconds,
+            max_retries=max_retries,
         )
-        content = response.choices[0].message.content
-        if not content:
-            raise LlmError("OpenAI 兼容接口没有返回文本。")
-        return content
-    response = client.responses.create(model=model, input=input_text)
-    return response.output_text
+        if base_url
+        else OpenAI(
+            api_key=api_key,
+            timeout=timeout_seconds,
+            max_retries=max_retries,
+        )
+    )
+    try:
+        if base_url and os.getenv("OPENAI_API_MODE", "chat").strip().lower() == "responses":
+            response = client.responses.create(model=model, input=input_text)
+            content = response.output_text
+            if not content:
+                raise LlmError("OpenAI Responses 接口没有返回文本。")
+            return content
+        if base_url:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": input_text}],
+                temperature=0.2,
+            )
+            content = response.choices[0].message.content
+            if not content:
+                raise LlmError("OpenAI 兼容接口没有返回文本。")
+            return content
+        response = client.responses.create(model=model, input=input_text)
+        return response.output_text
+    except LlmError:
+        raise
+    except Exception as exc:
+        raise LlmError(f"OpenAI 调用失败：{type(exc).__name__}: {exc}") from exc
 
 
 def _generate_openai_compatible(
@@ -90,6 +146,8 @@ def _generate_openai_compatible(
     model: str,
     input_text: str,
     provider_label: str,
+    timeout_seconds: float,
+    max_retries: int,
 ) -> str:
     api_key = os.getenv(api_key_name)
     if not api_key:
@@ -99,16 +157,28 @@ def _generate_openai_compatible(
     except ImportError as exc:
         raise LlmError("还没有安装 openai 依赖。请运行：pip install -r requirements.txt") from exc
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": input_text}],
-        temperature=0.2,
+    client = OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=timeout_seconds,
+        max_retries=max_retries,
     )
-    content = response.choices[0].message.content
-    if not content:
-        raise LlmError(f"{provider_label} 没有返回文本。")
-    return content
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": input_text}],
+            temperature=0.2,
+        )
+        content = response.choices[0].message.content
+        if not content:
+            raise LlmError(f"{provider_label} 没有返回文本。")
+        return content
+    except LlmError:
+        raise
+    except Exception as exc:
+        raise LlmError(
+            f"{provider_label} 调用失败：{type(exc).__name__}: {exc}"
+        ) from exc
 
 
 def _extract_json(text: str) -> str:

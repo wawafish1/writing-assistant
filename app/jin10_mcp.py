@@ -38,6 +38,7 @@ class Jin10McpClient:
             }
         )
         self.session_id: str | None = None
+        self._started = False
         self._next_id = 1
 
     def initialize(self) -> dict[str, Any]:
@@ -56,22 +57,21 @@ class Jin10McpClient:
         }
         message, response = self._post(payload)
         session_id = response.headers.get("Mcp-Session-Id")
-        if not session_id:
-            raise Jin10McpError("Jin10 MCP did not return Mcp-Session-Id.")
-        self.session_id = session_id
+        if session_id:
+            self.session_id = session_id
         result = message.get("result")
         if not isinstance(result, dict):
             raise Jin10McpError(f"Invalid initialize response: {message}")
         return result
 
     def initialized(self) -> None:
-        self._ensure_session()
         payload = {"jsonrpc": "2.0", "method": "notifications/initialized"}
         self._post(payload)
 
     def start(self) -> dict[str, Any]:
         result = self.initialize()
         self.initialized()
+        self._started = True
         return result
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -153,7 +153,7 @@ class Jin10McpClient:
         return result
 
     def _ensure_session(self) -> None:
-        if not self.session_id:
+        if not self._started:
             self.start()
 
     def _post(self, payload: dict[str, Any]) -> tuple[dict[str, Any], requests.Response]:

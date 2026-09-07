@@ -1,15 +1,23 @@
 # 写作助手
 
-一个面向中文内容创作的本地写作工作台。它可以沉淀 KOL 写作风格、采集财经/科技/加密相关证据、同时调用 GPT、Grok、DeepSeek 生成三版文章，并把你最终修改后的稿件保存为个人风格记忆。
+一个面向中文财经内容创作的本地 AI 写作 Agent。它可以扫描热点、调用多种数据源完成研究、沉淀 KOL 写作风格、同时使用 GPT 和 DeepSeek 生成文章，并把你最终修改后的稿件保存为个人风格记忆。Grok 作为可选工具，用于在不改动正文内容的前提下整理 X / Twitter 发布格式。
+
+## 项目定位
+
+这是一个可独立运行的 **Agent 应用**，不是 Codex Skill。它拥有网页界面、数据库、模型调用、外部研究工具和完整的“热点发现 → 证据研究 → 双模型写作 → 人工定稿 → 风格记忆”工作流。
+
+如果以后需要把其中某项能力提供给其他 Agent 调用，可以再把“热点扫描”“风格改写”等单项能力封装成 MCP 工具或 Codex Skill；当前仓库保留完整应用形态更合适。
 
 ## 能做什么
 
 - 手动导入 X/Twitter、文章、长推等写作样本。
 - 基于样本生成可复用的风格画像。
 - 在写作时选择不同风格对象，生成符合该风格结构、节奏和论证方式的原创文章。
-- 同时调用 GPT、Grok、DeepSeek 三个模型生成不同版本。
+- 同时调用 GPT 和 DeepSeek 生成不同版本，单个模型失败不会影响另一个模型返回结果。
+- 可选使用 Grok 整理最终稿发布格式，正文内容保持不变。
 - 自动研究主题，整理证据简报，再基于证据写分析文章。
-- 支持 Tavily、Finnhub、Alpha Vantage、BlockBeats、金十数据等资讯/行情来源。
+- 扫描当日美股、加密热点，选择主题后自动拆解关键词和行情代码并开始研究。
+- 支持 Tavily、Finnhub、Alpha Vantage、CoinGecko、OKX、BlockBeats、金十数据、WGD Insight 等资讯/行情/舆情来源。
 - 支持参考文本改写，以及“研究内容 + 参考文本”结合写作。
 - 支持最终稿记忆学习：你把自己最终修改后的版本保存进去，后续可以选择“我的风格”继续生成。
 - 支持平台和篇幅设置：X / Twitter、小红书、公众号、知乎、即刻；标准、精简、展开；以及具体字数限制。
@@ -27,11 +35,14 @@
 ```text
 app/
   main.py          # FastAPI 页面和接口
+  static/          # 全站视觉样式
   config.py        # 环境变量配置
   db.py            # SQLite 数据库读写
   llm.py           # GPT / Grok / DeepSeek 调用
   style.py         # 风格分析和文章生成提示词
-  research.py      # Tavily / Finnhub / Alpha Vantage / BlockBeats 研究聚合
+  research.py      # Tavily / Finnhub / Alpha Vantage / BlockBeats / WGD 研究聚合
+  hot_topics.py    # 美股/加密热点扫描、聚类和行情信号
+  wgd_insight.py   # WGD Insight 美股公开舆情客户端
   jin10_mcp.py     # 金十数据 MCP 客户端
   cli.py           # 命令行工具
 docs/
@@ -45,7 +56,8 @@ data/
 Windows PowerShell：
 
 ```powershell
-cd C:\Users\87271\.codex\project\写作助手
+git clone https://github.com/wawafish1/writing-assistant.git
+cd writing-assistant
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -66,6 +78,9 @@ DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 
+HOT_TOPIC_PROVIDER=deepseek
+HOT_TOPIC_MODEL=deepseek-chat
+
 TAVILY_API_KEY=
 ALPHA_VANTAGE_API_KEY=
 FINNHUB_API_KEY=
@@ -76,8 +91,10 @@ JIN10_MCP_TOKEN=
 启动服务：
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8010
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8010
 ```
+
+项目路径包含中文时，Windows 上的 `uvicorn --reload` 可能无法可靠监听文件变化，因此日常使用建议采用上面的稳定启动命令。
 
 打开页面：
 
@@ -95,21 +112,22 @@ http://127.0.0.1:8010/docs
 
 - `/capture`：逐篇粘贴样本。
 - `/import`：批量导入样本。
-- `/compare`：用 GPT、Grok、DeepSeek 分析同一批样本，生成三套风格画像。
-- `/write`：普通三模型写作工作台。
-- `/research`：自动研究 + 三模型生成 + 参考文本改写 + 最终稿记忆学习。
+- `/compare`：对已经导入的样本进行风格分析。
+- `/write`：不启用自动研究的普通双模型写作工作台。
+- `/research`：热点扫描 + 自动研究 + 双模型生成 + 参考文本改写 + 最终稿记忆学习。
 
 ## 推荐使用流程
 
 1. 打开 `/import` 或 `/capture`，导入某个 KOL 或你自己的文章样本。
-2. 打开 `/compare`，选择样本数量，生成 GPT、Grok、DeepSeek 三种风格画像。
+2. 打开 `/compare`，选择样本数量并生成风格画像。
 3. 打开 `/research`，选择风格对象。
-4. 输入主题、关键词、股票代码、金十关键词等研究参数。
-5. 点击“自动研究”，生成证据简报。
-6. 设置平台、篇幅倾向和长度。
-7. 点击“三模型生成”，得到 GPT、Grok、DeepSeek 三版文章。
-8. 在最右侧最终稿区域综合改写。
-9. 点击“保存到记忆”，把最终成稿沉淀为自己的风格。
+4. 点击“扫描今日热点”，选择美股、加密或综合领域。
+5. 点击某个热点的“选择并研究”，系统会自动填写主题、关键词、美股代码、加密代码、金十参数，并生成证据简报。
+6. 也可以自己输入主题，点击“根据主题生成参数”，生成后继续手动修改，再点击“自动研究”。
+7. 设置平台、篇幅倾向和长度。
+8. 点击“双模型生成”，得到 GPT 和 DeepSeek 两版文章。
+9. 在最右侧最终稿区域综合改写。
+10. 点击“保存到记忆”，把最终成稿沉淀为自己的风格。
 
 ## 平台和长度设置
 
@@ -136,11 +154,13 @@ DEEPSEEK_API_KEY=DeepSeek 官方 API Key
 DEEPSEEK_BASE_URL=DeepSeek 官方 API 地址，默认 https://api.deepseek.com
 DEEPSEEK_MODEL=DeepSeek 官方模型名，例如 deepseek-chat
 
+HOT_TOPIC_PROVIDER=热点聚类使用的供应商，默认 deepseek
+HOT_TOPIC_MODEL=热点聚类专用快速模型，默认 deepseek-chat
+
 TAVILY_API_KEY=Tavily 搜索 Key
 ALPHA_VANTAGE_API_KEY=Alpha Vantage 行情 Key
 FINNHUB_API_KEY=Finnhub 行情/新闻 Key
 BLOCKBEATS_API_KEY=BlockBeats 资讯 Key
-
 JIN10_MCP_URL=金十 MCP 地址
 JIN10_MCP_TOKEN=金十 MCP Bearer Token
 
@@ -153,6 +173,9 @@ DATABASE_PATH=SQLite 数据库路径
 - OpenAI 和 xAI/Grok 可以使用官方 API，也可以按自己的服务条件改成兼容 OpenAI 格式的中转服务。
 - 如果使用官方 API，通常只需要填写各家的 `API_KEY` 和模型名；`OPENAI_BASE_URL` 可以留空，`XAI_BASE_URL` 使用示例中的官方地址即可。
 - 如果使用中转服务，请根据中转服务文档修改对应的 `BASE_URL`、`API_KEY` 和 `MODEL`，不要把真实 Key 提交到 GitHub。
+- CoinGecko 和 OKX 当前使用无需 Key 的公共行情接口，不需要额外填写环境变量。
+- WGD Insight 使用无需 Key 的公开接口，为美股热点和自动研究补充平台关注排名、情绪分及讨论量变化。公开接口可能限流，系统会在失败时自动跳过；其平台热门排名不等于全网热度、涨幅榜或投资推荐。
+- 为避免直接复用第三方 AI 报告，项目只读取 WGD Insight 的结构化舆情指标和标题，不把完整 AI 摘要复制到生成材料中。
 
 ## 数据和安全
 
@@ -182,7 +205,6 @@ __pycache__/
 ## 命令行用法
 
 ```powershell
-python -m app.cli collect yijiangren --limit 500
 python -m app.cli analyze yijiangren --sample-limit 120
 python -m app.cli generate yijiangren "主题：AI 算力周期发生了什么变化？"
 ```
