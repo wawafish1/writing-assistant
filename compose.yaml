@@ -5,7 +5,27 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    ports:
-      - "80:8010"
+    expose:
+      - "8010"
     volumes:
       - ./data:/app/data
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: writing-assistant-caddy
+    restart: unless-stopped
+    depends_on:
+      - writing-assistant
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

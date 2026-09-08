@@ -1,0 +1,3 @@
+{$APP_DOMAIN}, www.{$APP_DOMAIN} {
+    reverse_proxy writing-assistant:8010
+}

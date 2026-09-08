@@ -123,6 +123,7 @@ cp .env.example .env
 ```text
 APP_AUTH_USERNAME=
 APP_AUTH_PASSWORD=
+APP_DOMAIN=your-domain.com
 ```
 
 已有本地数据时，将原来的 `data/twitter_style.db` 上传到服务器的 `writing-assistant/data/`，即可保留样本、风格画像、生成记录和最终稿记忆，无需重新导入。`.env` 和数据库都不要提交到 GitHub。
@@ -133,7 +134,7 @@ APP_AUTH_PASSWORD=
 sudo docker compose up -d --build
 ```
 
-默认通过服务器公网 IP 的 80 端口访问。域名并非首次部署的必需条件；域名可用后，将其解析到服务器并配置 HTTPS 即可。
+首次部署可以通过服务器公网 IP 的 80 端口测试。准备正式分享时，将域名的根记录和 `www` A 记录解析到服务器公网 IP，设置 `APP_DOMAIN`，再运行相同的启动命令。Caddy 会自动申请和续期 HTTPS 证书，网页随后通过 `https://your-domain.com` 访问。
 
 ## 常用页面
 
@@ -237,6 +238,7 @@ sudo docker compose up -d --build
 ```text
 APP_AUTH_USERNAME=公网访问登录账号；本地使用时可留空
 APP_AUTH_PASSWORD=公网访问登录密码；应使用强密码
+APP_DOMAIN=公网域名；启用 HTTPS 时必填，例如 your-domain.com
 
 OPENAI_API_KEY=OpenAI 官方 API Key
 OPENAI_BASE_URL=OpenAI 官方 API 地址；使用官方服务时可以留空
