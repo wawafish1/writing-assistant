@@ -1,3 +1,7 @@
 {$APP_DOMAIN}, www.{$APP_DOMAIN} {
     reverse_proxy writing-assistant:8010
 }
+
+video.{$APP_DOMAIN} {
+    reverse_proxy video-to-x-article:54810
+}
