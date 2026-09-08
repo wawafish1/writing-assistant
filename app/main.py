@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
+import secrets
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -63,6 +65,37 @@ app = FastAPI(
     version="0.1.0",
 )
 app.mount("/assets", StaticFiles(directory=Path(__file__).parent / "static"), name="assets")
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    username = settings.app_auth_username
+    password = settings.app_auth_password
+    if not username and not password:
+        return await call_next(request)
+    if not username or not password:
+        return Response("登录保护配置不完整。", status_code=500)
+
+    authorization = request.headers.get("Authorization", "")
+    supplied_username = ""
+    supplied_password = ""
+    if authorization.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(authorization[6:], validate=True).decode("utf-8")
+            supplied_username, supplied_password = decoded.split(":", 1)
+        except (ValueError, UnicodeDecodeError):
+            pass
+
+    authenticated = secrets.compare_digest(supplied_username, username) and secrets.compare_digest(
+        supplied_password, password
+    )
+    if not authenticated:
+        return Response(
+            "需要登录后访问。",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Writing Assistant", charset="UTF-8"'},
+        )
+    return await call_next(request)
 
 
 @app.get("/favicon.ico", include_in_schema=False)

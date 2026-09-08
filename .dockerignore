@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+data
+output
+.pytest_cache
+.playwright-cli
+__pycache__
+*.pyc
+*.db
+*.sqlite
+*.sqlite3
+*.log

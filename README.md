@@ -108,6 +108,33 @@ http://127.0.0.1:8010/research
 http://127.0.0.1:8010/docs
 ```
 
+## Docker 服务器部署
+
+服务器已经安装 Docker 时，可以直接运行：
+
+```bash
+git clone https://github.com/wawafish1/writing-assistant.git
+cd writing-assistant
+cp .env.example .env
+```
+
+编辑 `.env` 并填写 API 配置。部署到公网时，还应设置登录账号和强密码：
+
+```text
+APP_AUTH_USERNAME=
+APP_AUTH_PASSWORD=
+```
+
+已有本地数据时，将原来的 `data/twitter_style.db` 上传到服务器的 `writing-assistant/data/`，即可保留样本、风格画像、生成记录和最终稿记忆，无需重新导入。`.env` 和数据库都不要提交到 GitHub。
+
+启动服务：
+
+```bash
+sudo docker compose up -d --build
+```
+
+默认通过服务器公网 IP 的 80 端口访问。域名并非首次部署的必需条件；域名可用后，将其解析到服务器并配置 HTTPS 即可。
+
 ## 常用页面
 
 - `/capture`：逐篇粘贴样本。
@@ -208,6 +235,9 @@ http://127.0.0.1:8010/docs
 ## 环境变量说明
 
 ```text
+APP_AUTH_USERNAME=公网访问登录账号；本地使用时可留空
+APP_AUTH_PASSWORD=公网访问登录密码；应使用强密码
+
 OPENAI_API_KEY=OpenAI 官方 API Key
 OPENAI_BASE_URL=OpenAI 官方 API 地址；使用官方服务时可以留空
 OPENAI_MODEL=OpenAI 官方模型名，例如 gpt-5

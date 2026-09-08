@@ -22,6 +22,8 @@ def load_dotenv(path: str | Path = ".env") -> None:
 
 @dataclass(frozen=True)
 class Settings:
+    app_auth_username: str | None
+    app_auth_password: str | None
     openai_api_key: str | None
     xai_api_key: str | None
     deepseek_api_key: str | None
@@ -46,6 +48,8 @@ def get_settings() -> Settings:
     load_dotenv()
     database_path = Path(os.getenv("DATABASE_PATH", "data/twitter_style.db"))
     return Settings(
+        app_auth_username=os.getenv("APP_AUTH_USERNAME"),
+        app_auth_password=os.getenv("APP_AUTH_PASSWORD"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         xai_api_key=os.getenv("XAI_API_KEY"),
         deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
